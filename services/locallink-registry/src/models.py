@@ -5,8 +5,8 @@ from ipaddress import IPv4Address
 
 
 class RegisterService(BaseModel):
-    name: str
     ip: IPv4Address
+    name: str = Field(..., min_length=1, max_length=256)
     ttl: int = Field(default=300, ge=1, le=3600)  # 1 sec to 60 min
 
 
@@ -16,7 +16,7 @@ class RegisterServiceResponse(BaseModel):
 
 
 class ResolveService(BaseModel):
-    name: str
     ip: IPv4Address
     expire_at: datetime
+    name: str = Field(..., min_length=1, max_length=256)
 
