@@ -1,0 +1,18 @@
+[project]
+name = "locallink-registry"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.136.0",
+    "pydantic>=2.13.2",
+    "pydantic-settings>=2.13.1",
+    "redis>=7.4.0",
+]
+
+[dependency-groups]
+dev = [
+    "python-dotenv>=1.2.2",
+    "uvicorn>=0.44.0",
+]
