@@ -1,16 +1,19 @@
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
-import 'registry_client.dart';
-
-final ipServerClient = LocalDnsClient(
-  baseUrl: 'https://ip-finder-server-8nb4.vercel.app',
-  apiKey:
-      'sexy123asshole123-love-for-her-should-be-killed-as-i-am-nothing-for-her-re(z)-be-real',
-);
+import 'dart:io' as io;
+import 'dart:typed_data' as types;
+import 'package:flutter/material.dart' as flutter;
+import 'package:locallink_mobile/registry_client.dart' as registry_client;
+import 'package:locallink_mobile/config.dart';
 
 class DnsProxy {
-  RawDatagramSocket? _server;
+  late final registry_client.LocalDnsClient ipServerClient;
+  final AppConfig config;
+  DnsProxy({required this.config}) {
+    ipServerClient = registry_client.LocalDnsClient(
+      baseUrl: config.baseUrl,
+      apiKey: config.apiKey,
+    );
+  }
+  io.RawDatagramSocket? _server;
 
   String upstreamIp = "8.8.8.8";
   int upstreamPort = 53;
@@ -18,7 +21,7 @@ class DnsProxy {
   int dnsPort = 5353;
   bool bindAllInterfaces = false;
 
-  final ValueNotifier<List<String>> logs = ValueNotifier([]);
+  final flutter.ValueNotifier<List<String>> logs = flutter.ValueNotifier([]);
 
   bool isRunning = false;
   void log(String message) {
@@ -31,10 +34,10 @@ class DnsProxy {
   Future<void> start() async {
     if (isRunning) return;
 
-    _server = await RawDatagramSocket.bind(
+    _server = await io.RawDatagramSocket.bind(
       bindAllInterfaces
-          ? InternetAddress.anyIPv4
-          : InternetAddress.loopbackIPv4,
+          ? io.InternetAddress.anyIPv4
+          : io.InternetAddress.loopbackIPv4,
       dnsPort,
     );
 
@@ -50,8 +53,8 @@ class DnsProxy {
     log("Stopped DNS Proxy");
   }
 
-  void _handlePacket(RawSocketEvent event) async {
-    if (event != RawSocketEvent.read) return;
+  void _handlePacket(io.RawSocketEvent event) async {
+    if (event != io.RawSocketEvent.read) return;
 
     final datagram = _server!.receive();
     if (datagram == null) return;
@@ -87,12 +90,15 @@ class DnsProxy {
     }
 
     // Forward to upstream DNS
-    final upstream = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    final upstream = await io.RawDatagramSocket.bind(
+      io.InternetAddress.anyIPv4,
+      0,
+    );
 
-    upstream.send(query, InternetAddress(upstreamIp), upstreamPort);
+    upstream.send(query, io.InternetAddress(upstreamIp), upstreamPort);
 
     upstream.listen((event) {
-      if (event == RawSocketEvent.read) {
+      if (event == io.RawSocketEvent.read) {
         final response = upstream.receive();
         if (response != null) {
           _server!.send(response.data, datagram.address, datagram.port);
@@ -102,7 +108,7 @@ class DnsProxy {
     });
   }
 
-  String extractDomain(Uint8List data) {
+  String extractDomain(types.Uint8List data) {
     int i = 12;
     List<String> labels = [];
 
@@ -115,8 +121,8 @@ class DnsProxy {
     return labels.join('.');
   }
 
-  Uint8List buildNxDomainResponse(Uint8List query) {
-    final response = Uint8List.fromList(query);
+  types.Uint8List buildNxDomainResponse(types.Uint8List query) {
+    final response = types.Uint8List.fromList(query);
 
     // Set response flags: QR=1, RCODE=3 (NXDOMAIN)
     response[2] = 0x81;
@@ -129,15 +135,15 @@ class DnsProxy {
     return response;
   }
 
-  Uint8List buildResponse(Uint8List query, String ip) {
-    final response = Uint8List.fromList(query);
+  types.Uint8List buildResponse(types.Uint8List query, String ip) {
+    final response = types.Uint8List.fromList(query);
 
     response[2] = 0x81;
     response[3] = 0x80;
     response[6] = 0x00;
     response[7] = 0x01;
 
-    final answer = BytesBuilder();
+    final answer = types.BytesBuilder();
 
     answer.add([0xC0, 0x0C]);
     answer.add([0x00, 0x01]);
@@ -146,6 +152,6 @@ class DnsProxy {
     answer.add([0x00, 0x04]);
     answer.add(ip.split('.').map(int.parse).toList());
 
-    return Uint8List.fromList([...response, ...answer.toBytes()]);
+    return types.Uint8List.fromList([...response, ...answer.toBytes()]);
   }
 }
