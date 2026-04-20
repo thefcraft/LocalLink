@@ -31,6 +31,34 @@ def register(
         message=f"registered (ttl={service.ttl}s)",
     )
 
+@app.post("/register-strict", response_model=models.RegisterServiceResponse)
+def register_strict(
+    req: Request,
+    service: models.RegisterService,
+) -> models.RegisterServiceResponse:
+    existing = req.app.state.registry.get(service.name)
+    if existing:
+        # If IP is different → reject
+        if existing["ip"] != str(service.ip):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Service '{service.name}' already registered with different IP ({existing['ip']})",
+            )
+
+    expire_at = datetime.now(tz=timezone.utc) + timedelta(seconds=service.ttl)
+
+    req.app.state.registry.set(
+        service={
+            "name": service.name,
+            "ip": str(service.ip),
+            "expire_at": expire_at,
+        },
+    )
+
+    return models.RegisterServiceResponse(
+        ok=True,
+        message=f"registered (ttl={service.ttl}s)",
+    )
 
 @app.get("/resolve/{name}", response_model=models.ResolveService)
 def resolve(req: Request, name: str) -> models.ResolveService:

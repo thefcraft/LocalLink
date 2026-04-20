@@ -43,8 +43,8 @@ class _HomeState extends State<Home> {
     if (loadingIps) return;
     setState(() => loadingIps = true);
 
+    final ips = <(String interface, String ip)>[];
     try {
-      final ips = <(String interface, String ip)>[];
       for (var interface in await io.NetworkInterface.list()) {
         for (var addr in interface.addresses) {
           if (addr.isLoopback) continue;
@@ -53,17 +53,16 @@ class _HomeState extends State<Home> {
         }
       }
 
-      setState(() {
-        availableIps = ips;
-        selectedIp = ips.isNotEmpty ? ips.first.$2 : null;
-      });
-
       proxy.log("Loaded IPs: $ips");
     } catch (e) {
       proxy.log("Failed to load IPs: $e");
     }
 
-    setState(() => loadingIps = false);
+    setState(() {
+      availableIps = ips;
+      selectedIp = ips.isNotEmpty ? ips.first.$2 : null;
+      loadingIps = false;
+    });
   }
 
   Future<void> registerSelf(String name, String ip) async {
@@ -71,6 +70,7 @@ class _HomeState extends State<Home> {
       name: name,
       ip: ip,
       ttl: 90,
+      strict: false,
     );
     if (ok) {
       proxy.log("Registered: $name → $ip");
@@ -95,21 +95,26 @@ class _HomeState extends State<Home> {
       heartbeatTimer = null;
       return;
     }
+    proxy.log("starting heartbeat...");
     // check if name exists and not equal to ip then return
-    final existingIp = await proxy.ipServerClient.resolve(name);
-    if (existingIp != null) {
-      if (existingIp != selectedIp) {
-        proxy.log("Name already taken by $existingIp");
-        setState(() => autoRegister = false);
-        heartbeatTimer = null;
-        return;
-      }
+    final ok = await proxy.ipServerClient.register(
+      name: name,
+      ip: selectedIp,
+      ttl: 90,
+      strict: true, // strict flag
+    );
+    if (ok) {
+      proxy.log("Registered: $name → $selectedIp");
+    } else {
+      proxy.log("Name already taken");
+      setState(() => autoRegister = false);
+      heartbeatTimer = null;
+      return;
     }
-
     heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) async {
       await registerSelf(name, selectedIp);
     });
-
+    
     proxy.log("Heartbeat started");
   }
 

@@ -28,21 +28,16 @@ class LocalDnsClient {
     required String name,
     required String ip,
     int ttl = 300,
+    bool strict = false,
   }) async {
-    final uri = Uri.parse('$baseUrl/register');
+    final endpoint = strict ? 'register-strict' : 'register';
+    final uri = Uri.parse('$baseUrl/$endpoint');
 
-    final body = convert.jsonEncode({
-      'name': name,
-      'ip': ip,
-      'ttl': ttl,
-    });
+    final body = convert.jsonEncode({'name': name, 'ip': ip, 'ttl': ttl});
 
     final res = await http.post(
       uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
+      headers: {'Content-Type': 'application/json', 'X-API-Key': apiKey},
       body: body,
     );
 
