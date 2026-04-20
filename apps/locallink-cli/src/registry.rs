@@ -33,7 +33,12 @@ pub async fn resolve(name: &str, config: &Config) -> Result<Option<String>, reqw
     }
 }
 
-pub async fn register(name: &str, ip: &str, config: &Config) -> Result<(), reqwest::Error> {
+pub async fn register(
+    name: &str,
+    ip: &str,
+    strict: bool,
+    config: &Config,
+) -> Result<(), reqwest::Error> {
     let client = reqwest::Client::new();
 
     let body = RegisterReq {
@@ -42,37 +47,37 @@ pub async fn register(name: &str, ip: &str, config: &Config) -> Result<(), reqwe
         ttl: 90,
     };
 
-    let res = client
-        .post(format!("{}/register", config.base_url))
+    let endpoint = if strict {
+        "register-strict"
+    } else {
+        "register"
+    };
+
+    client
+        .post(format!("{}/{}", config.base_url, endpoint))
         .header("X-API-Key", config.api_key.clone())
         .json(&body)
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
 
-    if res.status().is_success() {
-        println!("Registered: {} → {}", name, ip);
-    } else {
-        println!("Register failed");
-    }
+    println!("Registered: {} → {}", name, ip);
 
     Ok(())
 }
 
 pub async fn run_register(name: String, ip: String, config: &Config) -> Result<(), crate::Error> {
-    // conflict check
-    if let Some(existing) = resolve(&name, config).await.map_err(crate::Error::Registry)? {
-        if existing != ip {
-            println!("Name already taken by {}", existing);
-            return Ok(());
-        }
-    }
-
-    register(&name, &ip, config).await.map_err(crate::Error::Registry)?;
-
     println!("Starting heartbeat...");
-
+    // conflict check
+    register(&name, &ip, true, config)
+        .await
+        .map_err(crate::Error::Registry)?;
+    
+    println!("heartbeat Started.");
     loop {
         sleep(Duration::from_secs(60)).await;
-        register(&name, &ip, config).await.map_err(crate::Error::Registry)?;
+        register(&name, &ip, false, config)
+            .await
+            .map_err(crate::Error::Registry)?;
     }
 }
